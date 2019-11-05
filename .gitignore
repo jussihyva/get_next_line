@@ -1,0 +1,7 @@
+*.swp
+*.o
+*.a
+main.c
+test_gnl
+test
+test_2
