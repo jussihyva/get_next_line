@@ -6,7 +6,7 @@
 /*   By: jkauppi <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:24:46 by jkauppi           #+#    #+#             */
-/*   Updated: 2019/11/05 08:36:19 by jkauppi          ###   ########.fr       */
+/*   Updated: 2019/11/08 18:42:29 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -112,9 +112,9 @@ int					get_next_line(const int fd, char **line)
 	t_fd_elem			**fd_elem;
 
 	elem = NULL;
-	if (line && (fd == 0 || fd > 2) && fd < FD_SIZE)
+	if (line)
 	{
-		fd_elem = ft_get_fd_buf(fd, sizeof(char) * (BUFF_SIZE + BUFF_FACTOR));
+		fd_elem = ft_get_fd_buf(fd, sizeof(char) * (BUFF_SIZE * BUFF_FACTOR));
 		buffer = &(*fd_elem)->buffer;
 		if ((match_ptr = ft_strchr(*buffer, '\n')))
 		{
