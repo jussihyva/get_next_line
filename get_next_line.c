@@ -105,24 +105,25 @@ static int			ft_read_fd_buffer(char **buffer, int fd, char **line,
 
 int					get_next_line(const int fd, char **line)
 {
-	static char			*fd_table[FD_SIZE];
 	char				*match_ptr;
 	ssize_t				ret;
 	t_list				*elem;
+	char				**buffer;
+	t_fd_elem			**fd_elem;
 
 	elem = NULL;
 	if (line && (fd == 0 || fd > 2) && fd < FD_SIZE)
 	{
-		if (!*(fd_table + fd))
-			*(fd_table + fd) = (ft_strnew(BUFF_SIZE * BUFF_FACTOR));
-		if ((match_ptr = ft_strchr(*(fd_table + fd), '\n')))
+		fd_elem = ft_get_fd_buf(fd, sizeof(char) * (BUFF_SIZE + BUFF_FACTOR));
+		buffer = &(*fd_elem)->buffer;
+		if ((match_ptr = ft_strchr(*buffer, '\n')))
 		{
-			*line = ft_memalloc(((match_ptr - fd_table[fd] + 1)));
-			return (ft_build_new_line((fd_table + fd), line, match_ptr, &elem));
+			*line = ft_memalloc(sizeof(char) * (match_ptr - *buffer + 1));
+			return (ft_build_new_line(buffer, line, match_ptr, &elem));
 		}
 		else
 		{
-			ret = (ft_read_fd_buffer(fd_table + fd, fd, line, &elem));
+			ret = (ft_read_fd_buffer(buffer, fd, line, &elem));
 			return (ret);
 		}
 	}
