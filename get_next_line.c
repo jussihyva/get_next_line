@@ -14,5 +14,5 @@
 
 int					get_next_line(const int fd, char **line)
 {
-	return (ft_get_next_line(fd, line);
+	return (ft_get_next_line(fd, line));
 }
