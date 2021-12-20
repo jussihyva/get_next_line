@@ -3,158 +3,128 @@
 /*                                                        :::      ::::::::   */
 /*   get_next_line.c                                    :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
+/*   By: jkauppi <marvin@42.fr>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:24:46 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/20 20:29:38 by jkauppi          ###   ########.fr       */
+/*   Updated: 2019/11/05 08:36:19 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
 
-static void	get_saved_buffers(t_list **elem_lst, char *buffer,
-							char *line)
+static int			ft_build_new_line(char **buffer, char **line,
+		char *match_ptr, t_list **elem_lst)
 {
 	t_list		*elem;
 	t_list		*tmp;
 
-	elem = *elem_lst;
-	while (elem)
-	{
-		tmp = elem->next;
-		ft_strcat(line, elem->content);
-		ft_strdel((char **)&(elem->content));
-		free(elem);
-		elem = tmp;
-	}
-	ft_strcat(line, buffer);
-	*elem_lst = NULL;
-	return ;
-}
-
-static void	reset_line_offset(t_read_attrs *read_attrs, size_t index,
-					char *match_ptr,
-					char match_char)
-{
-	read_attrs->read_ptr = read_attrs->buffer;
-	read_attrs->write_ptr -= read_attrs->line_offset + index;
-	if (match_char == '\n')
-	{
-		read_attrs->write_ptr--;
-		ft_strcpy(read_attrs->buffer, match_ptr + 1);
-	}
-	else
-		read_attrs->buffer[0] = '\0';
-	*read_attrs->write_ptr = '\0';
-	read_attrs->line_offset = 0;
-	return ;
-}
-
-static int	get_next_line_from_buffer(t_read_attrs *read_attrs, char **line,
-						size_t index, char *match_ptr)
-{
-	int			ret;
-	char		match_char;
-
-	*line = ft_strnew(read_attrs->num_of_saved_char + index);
-	match_char = *match_ptr;
 	*match_ptr = '\0';
-	ret = 1;
-	if (read_attrs->elem_lst)
-		get_saved_buffers(&read_attrs->elem_lst,
-			read_attrs->buffer + read_attrs->line_offset, *line);
-	else if (*(read_attrs->buffer + read_attrs->line_offset))
-		ft_strcpy(*line, read_attrs->buffer + read_attrs->line_offset);
-	read_attrs->num_of_saved_char = 0;
-	if (match_char == '\n' && read_attrs->line_offset + index + BUFF_SIZE + 2
-		< BUFF_SIZE * BUFF_FACTOR)
-		read_attrs->line_offset += index + 1;
+	if (elem_lst && *elem_lst)
+	{
+		elem = *elem_lst;
+		while (elem)
+		{
+			tmp = elem->next;
+			ft_strcat(*line, elem->content);
+			ft_strdel((char **)&(elem->content));
+			free(elem);
+			elem = tmp;
+		}
+		free(elem);
+		*elem_lst = NULL;
+		ft_strcat(*line, *buffer);
+	}
 	else
-		reset_line_offset(read_attrs, index, match_ptr, match_char);
-	if (!(*line)[0] && match_char == '\0')
-		ret = 0;
+		*line = ft_strcpy(*line, *buffer);
+	*buffer = ft_strcpy(*buffer, match_ptr + 1);
+	return (1);
+}
+
+static size_t		ft_add_buf_lst(char *buffer,
+		size_t index, t_list **elem_lst, size_t *num_of_char)
+{
+	t_list			*new_elem;
+
+	if (index + BUFF_SIZE >= BUFF_SIZE * BUFF_FACTOR - 1)
+	{
+		new_elem = ft_lstnew(buffer, index + 1);
+		if (*elem_lst)
+			ft_lstadd_e(elem_lst, new_elem);
+		else
+			*elem_lst = new_elem;
+		*num_of_char += index;
+		index = 0;
+		*buffer = '\0';
+	}
+	return (index);
+}
+
+static int			ft_reply(char **buffer, size_t num_of_char,
+		char **line, t_list **elem)
+{
+	*line = ft_memalloc((sizeof(char) * ft_strlen(*buffer) + num_of_char + 1));
+	if (**buffer || *elem)
+	{
+		return (ft_build_new_line(buffer, line, *(buffer)
+					+ ft_strlen(*(buffer)), elem));
+	}
+	else
+		ft_memdel((void **)(buffer));
+	return (0);
+}
+
+static int			ft_read_fd_buffer(char **buffer, int fd, char **line,
+		t_list **elem)
+{
+	ssize_t				index;
+	ssize_t				ret;
+	char				*match_ptr;
+	size_t				num_of_char;
+
+	num_of_char = 0;
+	index = ft_strlen(*buffer);
+	while ((ret = read(fd, *buffer + index, BUFF_SIZE)) > 0)
+	{
+		*(char *)(*buffer + index + ret) = '\0';
+		if ((match_ptr = ft_strchr(*buffer + index, '\n')))
+		{
+			*line = ft_memalloc((sizeof(char) * ft_strlen(*buffer) +
+						num_of_char + 1));
+			return (ft_build_new_line(buffer, line, match_ptr, elem));
+		}
+		index += ret;
+		index = ft_add_buf_lst(*buffer, index, elem, &num_of_char);
+	}
+	if (!ret)
+		*(*buffer + index + 1) = '\0';
+	if (ret)
+		return (ret);
+	ret = ft_reply(buffer, num_of_char, line, elem);
 	return (ret);
 }
 
-static void	save_buffer_if_full(t_read_attrs *read_attrs)
+int					get_next_line(const int fd, char **line)
 {
-	t_list		*new_elem;
-	size_t		index;
+	static char			*fd_table[FD_SIZE];
+	char				*match_ptr;
+	ssize_t				ret;
+	t_list				*elem;
 
-	index = read_attrs->write_ptr - read_attrs->buffer
-		- read_attrs->line_offset;
-	if (read_attrs->line_offset + index + BUFF_SIZE + 2
-		>= BUFF_SIZE * BUFF_FACTOR)
-	{
-		new_elem = ft_lstnew(read_attrs->buffer + read_attrs->line_offset,
-				index + 1);
-		if (read_attrs->elem_lst)
-			ft_lstadd_e(&read_attrs->elem_lst, new_elem);
-		else
-			read_attrs->elem_lst = new_elem;
-		read_attrs->num_of_saved_char += index;
-		read_attrs->read_ptr = read_attrs->buffer;
-		read_attrs->write_ptr = read_attrs->buffer;
-		read_attrs->line_offset = 0;
-	}
-	else
-		read_attrs->read_ptr = read_attrs->write_ptr;
-	return ;
-}
-
-static int	take_next_line(t_read_attrs *read_attrs, int *ret, char **line)
-{
-	t_bool		is_new_line;
-	size_t		index;
-	char		*match_ptr;
-	t_bool		end_of_file;
-
-	if (*ret != BUFF_SIZE)
-		end_of_file = E_TRUE;
-	else
-		end_of_file = E_FALSE;
-	is_new_line = E_FALSE;
-	match_ptr = ft_strchr(read_attrs->read_ptr, '\n');
-	if (!match_ptr && end_of_file)
-		match_ptr = read_attrs->write_ptr;
-	if (match_ptr)
-	{
-		read_attrs->read_ptr = match_ptr + 1;
-		index = match_ptr - read_attrs->buffer - read_attrs->line_offset;
-		*ret = get_next_line_from_buffer(read_attrs, line, index, match_ptr);
-		if (!(*ret))
-			ft_strdel(&read_attrs->buffer);
-		is_new_line = E_TRUE;
-	}
-	else
-		save_buffer_if_full(read_attrs);
-	return (is_new_line);
-}
-
-int	get_next_line(const int fd, char **line)
-{
-	static t_read_attrs		*read_attrs_array[FD_SIZE];
-	int						ret;
-
-	ret = -1;
+	elem = NULL;
 	if (line && (fd == 0 || fd > 2) && fd < FD_SIZE)
 	{
-		if (!read_attrs_array[fd])
+		if (!*(fd_table + fd))
+			*(fd_table + fd) = (ft_strnew(BUFF_SIZE * BUFF_FACTOR));
+		if ((match_ptr = ft_strchr(*(fd_table + fd), '\n')))
 		{
-			read_attrs_array[fd] = ft_memalloc(sizeof(*read_attrs_array[fd]));
-			read_attrs_array[fd]->buffer = ft_strnew(BUFF_SIZE * BUFF_FACTOR);
-			read_attrs_array[fd]->read_ptr = read_attrs_array[fd]->buffer;
-			read_attrs_array[fd]->write_ptr = read_attrs_array[fd]->buffer;
+			*line = ft_memalloc(((match_ptr - fd_table[fd] + 1)));
+			return (ft_build_new_line((fd_table + fd), line, match_ptr, &elem));
 		}
-		ret = BUFF_SIZE;
-		while (ret >= 0 && !take_next_line(read_attrs_array[fd], &ret, line))
+		else
 		{
-			ret = read(fd, read_attrs_array[fd]->write_ptr, BUFF_SIZE);
-			read_attrs_array[fd]->write_ptr += ret;
-			*read_attrs_array[fd]->write_ptr = '\0';
+			ret = (ft_read_fd_buffer(fd_table + fd, fd, line, &elem));
+			return (ret);
 		}
-		if (ret <= 0)
-			ft_memdel((void **)&read_attrs_array[fd]);
 	}
-	return (ret);
+	return (-1);
 }

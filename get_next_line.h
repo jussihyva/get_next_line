@@ -6,7 +6,7 @@
 /*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:25:16 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/20 20:20:19 by jkauppi          ###   ########.fr       */
+/*   Updated: 2021/12/20 22:26:00 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -20,22 +20,6 @@
 # define BUFF_SIZE 32
 # define BUFF_FACTOR 10
 # define FD_SIZE 3042
-
-typedef enum e_bool
-{
-	E_FALSE,
-	E_TRUE
-}		t_bool;
-
-typedef struct s_read_attrs
-{
-	char		*buffer;
-	char		*read_ptr;
-	char		*write_ptr;
-	size_t		line_offset;
-	t_list		*elem_lst;
-	size_t		num_of_saved_char;
-}		t_read_attrs;
 
 int		get_next_line(const int fd, char **line);
 
