@@ -6,133 +6,140 @@
 /*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:24:46 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/19 12:14:01 by jkauppi          ###   ########.fr       */
+/*   Updated: 2021/12/20 03:29:47 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
 
-static int	ft_build_new_line(char *buffer, char **line,
-		size_t index, t_list **elem_lst)
+static int	ft_build_new_line(t_read_attrs *read_attrs)
 {
 	t_list		*elem;
 	t_list		*tmp;
+	int			ret;
+	char		match_char;
 
-	buffer[index] = '\0';
-	if (elem_lst && *elem_lst)
+	match_char = *read_attrs->match_ptr;
+	*read_attrs->match_ptr = '\0';
+	ret = 1;
+	if (read_attrs->elem_lst)
 	{
-		elem = *elem_lst;
+		elem = read_attrs->elem_lst;
 		while (elem)
 		{
 			tmp = elem->next;
-			ft_strcat(*line, elem->content);
+			ft_strcat(read_attrs->line, elem->content);
 			ft_strdel((char **)&(elem->content));
 			free(elem);
 			elem = tmp;
 		}
-		free(elem);
-		*elem_lst = NULL;
-		ft_strcat(*line, buffer);
+		ft_strcat(read_attrs->line, read_attrs->buffer);
+		read_attrs->num_of_saved_char = 0;
+		read_attrs->elem_lst = NULL;
 	}
+	else if (*read_attrs->buffer)
+		ft_strcpy(read_attrs->line, read_attrs->buffer);
+	if (match_char == '\n')
+		ft_strcpy(read_attrs->buffer, read_attrs->match_ptr + 1);
 	else
-		ft_strcpy(*line, buffer);
-	ft_strcpy(buffer, &buffer[index + 1]);
-	return (1);
+		read_attrs->buffer[0] = '\0';
+	read_attrs->read_ptr = read_attrs->buffer;
+	read_attrs->write_ptr -= read_attrs->index + 1;
+	*read_attrs->write_ptr = '\0';
+	return (ret);
 }
 
-static size_t	ft_add_buf_lst(char *buffer,
-		size_t index, t_list **elem_lst, size_t *num_of_char)
+static void	ft_add_buf_lst(t_read_attrs *read_attrs)
 {
-	t_list			*new_elem;
+	t_list		*new_elem;
+	size_t		index;
 
+	index = read_attrs->write_ptr - read_attrs->buffer;
 	if (index + BUFF_SIZE >= BUFF_SIZE * BUFF_FACTOR - 1)
 	{
-		new_elem = ft_lstnew(buffer, index + 1);
-		if (*elem_lst)
-			ft_lstadd_e(elem_lst, new_elem);
+		new_elem = ft_lstnew(read_attrs->buffer, index + 1);
+		if (read_attrs->elem_lst)
+			ft_lstadd_e(&read_attrs->elem_lst, new_elem);
 		else
-			*elem_lst = new_elem;
-		*num_of_char += index;
-		index = 0;
-		*buffer = '\0';
-	}
-	return (index);
-}
-
-static int	check_new_line(t_read_attrs *read_attrs, ssize_t *index,
-					ssize_t ret)
-{
-	int			is_new_line;
-
-	read_attrs->buffer[*index + ret] = '\0';
-	read_attrs->match_ptr = ft_strchr(&read_attrs->buffer[*index], '\n');
-	if (read_attrs->match_ptr)
-	{
-		*index = read_attrs->match_ptr - read_attrs->buffer;
-		is_new_line = 1;
+			read_attrs->elem_lst = new_elem;
+		read_attrs->num_of_saved_char += index;
+		read_attrs->read_ptr = read_attrs->buffer;
+		read_attrs->write_ptr = read_attrs->buffer;
 	}
 	else
-		is_new_line = 0;
+		read_attrs->read_ptr = read_attrs->write_ptr;
+	return ;
+}
+
+static int	my_get_line(t_read_attrs *read_attrs)
+{
+	t_bool	is_new_line;
+
+	is_new_line = E_FALSE;
+	read_attrs->match_ptr = ft_strchr(read_attrs->read_ptr, '\n');
+	if (read_attrs->match_ptr)
+	{
+		read_attrs->read_ptr = read_attrs->match_ptr + 1;
+		read_attrs->index = read_attrs->match_ptr - read_attrs->buffer;
+		read_attrs->line = ft_strnew(read_attrs->num_of_saved_char
+				+ read_attrs->index);
+		read_attrs->ret = ft_build_new_line(read_attrs);
+		is_new_line = E_TRUE;
+	}
+	else if (read_attrs->end_of_file)
+	{
+		read_attrs->match_ptr = ft_strchr(read_attrs->read_ptr, '\0');
+		read_attrs->read_ptr = read_attrs->match_ptr;
+		read_attrs->index = read_attrs->match_ptr - read_attrs->buffer;
+		read_attrs->line = ft_strnew(read_attrs->num_of_saved_char
+				+ read_attrs->index);
+		read_attrs->ret = ft_build_new_line(read_attrs);
+		if (read_attrs->line[0])
+			read_attrs->ret = 1;
+		else
+			read_attrs->ret = 0;
+		is_new_line = E_TRUE;
+	}
+	else
+		ft_add_buf_lst(read_attrs);
 	return (is_new_line);
 }
 
-static int	ft_read_fd_buffer(t_read_attrs *read_attrs, int fd, char **line,
-		t_list **elem)
+static void	get_chars_from_file(t_read_attrs *read_attrs)
 {
-	ssize_t				index;
-	ssize_t				ret;
-	size_t				num_of_char;
-
-	num_of_char = 0;
-	index = ft_strlen(read_attrs->buffer);
-	while (1)
+	read_attrs->ret = read(read_attrs->fd, read_attrs->write_ptr, BUFF_SIZE);
+	if (read_attrs->ret > 0)
+		read_attrs->write_ptr += read_attrs->ret;
+	else if (read_attrs->ret == 0)
 	{
-		ret = read(fd, &read_attrs->buffer[index], BUFF_SIZE);
-		if (ret <= 0 || check_new_line(read_attrs, &index, ret))
-			break ;
-		index = ft_add_buf_lst(read_attrs->buffer, index + ret, elem,
-				&num_of_char);
+		read_attrs->end_of_file = E_TRUE;
 	}
-	if (ret >= 0)
-	{
-		*line = ft_strnew(num_of_char + index);
-		if (!ret)
-			read_attrs->buffer[index + 1] = '\0';
-		if (*read_attrs->buffer || *elem)
-			ret = ft_build_new_line(read_attrs->buffer, line, index, elem);
-		else
-			ret = 0;
-	}
-	return (ret);
+	*read_attrs->write_ptr = '\0';
+	return ;
 }
 
 int	get_next_line(const int fd, char **line)
 {
-	static char		*fd_table[FD_SIZE];
-	t_read_attrs	read_attrs;
+	static t_read_attrs		read_attrs_array[FD_SIZE];
+	t_read_attrs			*read_attrs;
+	int						ret;
 
-	read_attrs.fd = fd;
-	read_attrs.ret = -1;
-	read_attrs.elem = NULL;
 	if (line && (fd == 0 || fd > 2) && fd < FD_SIZE)
 	{
-		if (!fd_table[fd])
-			fd_table[fd] = ft_strnew(BUFF_SIZE * BUFF_FACTOR);
-		read_attrs.buffer = fd_table[fd];
-		read_attrs.match_ptr = ft_strchr(read_attrs.buffer, '\n');
-		if (read_attrs.match_ptr)
+		read_attrs = &read_attrs_array[fd];
+		if (!read_attrs->buffer)
 		{
-			*line = ft_strnew(read_attrs.match_ptr - read_attrs.buffer);
-			read_attrs.ret = ft_build_new_line(read_attrs.buffer, line,
-					read_attrs.match_ptr - read_attrs.buffer, &read_attrs.elem);
+			read_attrs->fd = fd;
+			read_attrs->buffer = ft_strnew(BUFF_SIZE * BUFF_FACTOR);
+			read_attrs->read_ptr = read_attrs->buffer;
+			read_attrs->write_ptr = read_attrs->buffer;
 		}
-		else
-		{
-			read_attrs.ret = ft_read_fd_buffer(&read_attrs, fd, line,
-					&read_attrs.elem);
-			if (!(*read_attrs.buffer) && !read_attrs.elem)
-				ft_memdel((void **)(&fd_table[fd]));
-		}
+		while (read_attrs->ret >= 0 && !my_get_line(read_attrs))
+			get_chars_from_file(read_attrs);
+		ret = read_attrs->ret;
+		*line = read_attrs->line;
 	}
-	return (read_attrs.ret);
+	else
+		ret = -1;
+	return (ret);
 }
