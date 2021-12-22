@@ -6,7 +6,7 @@
 /*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:24:46 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/20 20:29:38 by jkauppi          ###   ########.fr       */
+/*   Updated: 2021/12/22 20:02:37 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -66,11 +66,11 @@ static int	get_next_line_from_buffer(t_read_attrs *read_attrs, char **line,
 	else if (*(read_attrs->buffer + read_attrs->line_offset))
 		ft_strcpy(*line, read_attrs->buffer + read_attrs->line_offset);
 	read_attrs->num_of_saved_char = 0;
-	if (match_char == '\n' && read_attrs->line_offset + index + BUFF_SIZE + 2
-		< BUFF_SIZE * BUFF_FACTOR)
-		read_attrs->line_offset += index + 1;
-	else
+	if (match_char == '\0' || read_attrs->line_offset + index + BUFF_SIZE
+		> BUFF_SIZE * BUFF_FACTOR)
 		reset_line_offset(read_attrs, index, match_ptr, match_char);
+	else
+		read_attrs->line_offset += index + 1;
 	if (!(*line)[0] && match_char == '\0')
 		ret = 0;
 	return (ret);
@@ -83,8 +83,7 @@ static void	save_buffer_if_full(t_read_attrs *read_attrs)
 
 	index = read_attrs->write_ptr - read_attrs->buffer
 		- read_attrs->line_offset;
-	if (read_attrs->line_offset + index + BUFF_SIZE + 2
-		>= BUFF_SIZE * BUFF_FACTOR)
+	if (read_attrs->line_offset + index + BUFF_SIZE	> BUFF_SIZE * BUFF_FACTOR)
 	{
 		new_elem = ft_lstnew(read_attrs->buffer + read_attrs->line_offset,
 				index + 1);
@@ -107,15 +106,10 @@ static int	take_next_line(t_read_attrs *read_attrs, int *ret, char **line)
 	t_bool		is_new_line;
 	size_t		index;
 	char		*match_ptr;
-	t_bool		end_of_file;
 
-	if (*ret != BUFF_SIZE)
-		end_of_file = E_TRUE;
-	else
-		end_of_file = E_FALSE;
 	is_new_line = E_FALSE;
 	match_ptr = ft_strchr(read_attrs->read_ptr, '\n');
-	if (!match_ptr && end_of_file)
+	if (!match_ptr && read_attrs->end_of_file)
 		match_ptr = read_attrs->write_ptr;
 	if (match_ptr)
 	{
@@ -131,30 +125,44 @@ static int	take_next_line(t_read_attrs *read_attrs, int *ret, char **line)
 	return (is_new_line);
 }
 
-int	get_next_line(const int fd, char **line)
+static t_read_attrs **get_read_attrs(const int fd)
 {
 	static t_read_attrs		*read_attrs_array[FD_SIZE];
-	int						ret;
+	t_read_attrs			*read_attrs;
+
+	if (!read_attrs_array[fd])
+	{
+		read_attrs = ft_memalloc(sizeof(*read_attrs));
+		read_attrs->buffer = ft_strnew(BUFF_SIZE * BUFF_FACTOR);
+		read_attrs->read_ptr = read_attrs->buffer;
+		read_attrs->write_ptr = read_attrs->buffer;
+		read_attrs_array[fd] = read_attrs;
+	}
+	return (&read_attrs_array[fd]);
+}
+
+int	get_next_line(const int fd, char **line)
+{
+	t_read_attrs		**read_attrs;
+	int					ret;
 
 	ret = -1;
 	if (line && (fd == 0 || fd > 2) && fd < FD_SIZE)
 	{
-		if (!read_attrs_array[fd])
-		{
-			read_attrs_array[fd] = ft_memalloc(sizeof(*read_attrs_array[fd]));
-			read_attrs_array[fd]->buffer = ft_strnew(BUFF_SIZE * BUFF_FACTOR);
-			read_attrs_array[fd]->read_ptr = read_attrs_array[fd]->buffer;
-			read_attrs_array[fd]->write_ptr = read_attrs_array[fd]->buffer;
-		}
+		read_attrs = get_read_attrs(fd);
 		ret = BUFF_SIZE;
-		while (ret >= 0 && !take_next_line(read_attrs_array[fd], &ret, line))
+		while (ret >= 0 && !take_next_line(*read_attrs, &ret, line))
 		{
-			ret = read(fd, read_attrs_array[fd]->write_ptr, BUFF_SIZE);
-			read_attrs_array[fd]->write_ptr += ret;
-			*read_attrs_array[fd]->write_ptr = '\0';
+			ret = read(fd, (*read_attrs)->write_ptr, BUFF_SIZE);
+			(*read_attrs)->write_ptr += ret;
+			*(*read_attrs)->write_ptr = '\0';
+			if (ret != BUFF_SIZE)
+				(*read_attrs)->end_of_file = E_TRUE;
+			else
+				(*read_attrs)->end_of_file = E_FALSE;
 		}
 		if (ret <= 0)
-			ft_memdel((void **)&read_attrs_array[fd]);
+			ft_memdel((void **)read_attrs);
 	}
 	return (ret);
 }

@@ -6,7 +6,7 @@
 /*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:25:16 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/20 20:20:19 by jkauppi          ###   ########.fr       */
+/*   Updated: 2021/12/22 19:34:01 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -35,6 +35,7 @@ typedef struct s_read_attrs
 	size_t		line_offset;
 	t_list		*elem_lst;
 	size_t		num_of_saved_char;
+	t_bool		end_of_file;
 }		t_read_attrs;
 
 int		get_next_line(const int fd, char **line);
