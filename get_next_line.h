@@ -6,7 +6,7 @@
 /*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:25:16 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/23 11:11:10 by jkauppi          ###   ########.fr       */
+/*   Updated: 2021/12/23 11:37:49 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -17,7 +17,7 @@
 # include <sys/uio.h>
 # include <unistd.h>
 # include <stdlib.h>
-# define BUFF_SIZE 320000
+# define BUFF_SIZE 256
 # define BUFF_FACTOR 10
 # define FD_SIZE 3042
 

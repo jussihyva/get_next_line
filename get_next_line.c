@@ -6,7 +6,7 @@
 /*   By: jkauppi <jkauppi@student.hive.fi>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2019/10/31 10:24:46 by jkauppi           #+#    #+#             */
-/*   Updated: 2021/12/23 11:09:34 by jkauppi          ###   ########.fr       */
+/*   Updated: 2021/12/23 11:51:28 by jkauppi          ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,9 +32,9 @@ static void	get_saved_buffers(t_list **elem_lst, char *buffer,
 	return ;
 }
 
-static void	reset_line_offset(t_read_attrs *read_attrs)
+static void	reset_buffer_offset(t_read_attrs *read_attrs)
 {
-	read_attrs->read_ptr = read_attrs->buffer;
+	read_attrs->read_ptr -= read_attrs->line_offset;
 	read_attrs->write_ptr -= read_attrs->line_offset;
 	ft_strcpy(read_attrs->buffer,
 		read_attrs->buffer + read_attrs->line_offset);
@@ -73,14 +73,14 @@ static void	save_buffer_if_full(t_read_attrs *read_attrs)
 	t_list		*new_elem;
 	size_t		index;
 
-	if (read_attrs->write_ptr - read_attrs->buffer + BUFF_SIZE
-		> BUFF_SIZE * BUFF_FACTOR)
-		reset_line_offset(read_attrs);
-	index = read_attrs->write_ptr - read_attrs->buffer
-		- read_attrs->line_offset;
+	if (read_attrs->write_ptr + BUFF_SIZE
+		> read_attrs->buffer + BUFF_SIZE * BUFF_FACTOR)
+		reset_buffer_offset(read_attrs);
 	if (read_attrs->write_ptr + BUFF_SIZE
 		> read_attrs->buffer + BUFF_SIZE * BUFF_FACTOR)
 	{
+		index = read_attrs->write_ptr - read_attrs->buffer
+			- read_attrs->line_offset;
 		new_elem = ft_lstnew(read_attrs->buffer + read_attrs->line_offset,
 				index + 1);
 		if (read_attrs->elem_lst)
@@ -122,7 +122,7 @@ static int	take_next_line(t_read_attrs *read_attrs, int *ret, char **line)
 	return (is_new_line);
 }
 
-static t_read_attrs **get_read_attrs(const int fd)
+static t_read_attrs	**get_read_attrs(const int fd)
 {
 	static t_read_attrs		*read_attrs_array[FD_SIZE];
 	t_read_attrs			*read_attrs;
@@ -144,7 +144,7 @@ int	get_next_line(const int fd, char **line)
 	int					ret;
 
 	ret = -1;
-	if (line && (fd == 0 || fd > 2) && fd < FD_SIZE)
+	if (line && 0 <= fd && fd < FD_SIZE)
 	{
 		read_attrs = get_read_attrs(fd);
 		ret = BUFF_SIZE;
